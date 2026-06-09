@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MyMoney — Personal Finance Tracker</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💸</text></svg>">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{
+  --navy:#1f3864; --blue:#2e5496; --accent:#3b82f6; --green:#16a34a; --red:#dc2626;
+  --bg:#f4f6fb; --card:#ffffff; --line:#e5e9f2; --text:#1e293b; --muted:#64748b;
+  --shadow:0 1px 3px rgba(15,23,42,.06),0 8px 24px rgba(15,23,42,.05);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);font-size:15px;line-height:1.5}
+.app{max-width:1180px;margin:0 auto;padding:0 18px 70px}
+header.top{display:flex;align-items:center;justify-content:space-between;padding:18px 0 10px;flex-wrap:wrap;gap:10px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:21px;color:var(--navy)}
+.brand .logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--navy),var(--accent));display:grid;place-items:center;color:#fff;font-size:18px}
+.privacy{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;background:#fff;border:1px solid var(--line);padding:6px 11px;border-radius:999px}
+nav.tabs{display:flex;gap:4px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:5px;margin:8px 0 22px;flex-wrap:wrap;box-shadow:var(--shadow)}
+nav.tabs button{border:0;background:transparent;padding:9px 16px;border-radius:8px;font-size:14px;font-weight:600;color:var(--muted);cursor:pointer;transition:.15s}
+nav.tabs button:hover{color:var(--navy)}
+nav.tabs button.active{background:var(--navy);color:#fff}
+.tab{display:none}.tab.active{display:block;animation:fade .25s ease}
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.row{display:flex;gap:16px;flex-wrap:wrap}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;box-shadow:var(--shadow)}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:8px}
+@media(max-width:760px){.kpis{grid-template-columns:repeat(2,1fr)}}
+.kpi{padding:16px 18px}
+.kpi .label{font-size:12.5px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.kpi .val{font-size:25px;font-weight:800;margin-top:6px}
+.kpi .sub{font-size:12px;color:var(--muted);margin-top:3px}
+.val.green{color:var(--green)}.val.red{color:var(--red)}.val.navy{color:var(--navy)}
+.grid2{display:grid;grid-template-columns:1.3fr 1fr;gap:16px;margin-top:16px}
+@media(max-width:860px){.grid2{grid-template-columns:1fr}}
+h2.section{font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:12px;font-weight:700}
+.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
+select,input[type=text],input[type=number],input[type=date]{font:inherit;padding:8px 11px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--text);outline:none}
+select:focus,input:focus{border-color:var(--accent)}
+button.btn{font:inherit;font-weight:600;border:0;border-radius:9px;padding:9px 16px;background:var(--navy);color:#fff;cursor:pointer;transition:.15s}
+button.btn:hover{background:var(--blue)}
+button.btn.ghost{background:#fff;color:var(--navy);border:1px solid var(--line)}
+button.btn.ghost:hover{background:#f1f5fb}
+button.btn.danger{background:#fff;color:var(--red);border:1px solid #f3c6c6}
+button.btn.sm{padding:6px 11px;font-size:13px}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{text-align:left;color:var(--muted);font-weight:700;font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;padding:9px 10px;border-bottom:2px solid var(--line)}
+td{padding:9px 10px;border-bottom:1px solid var(--line)}
+tr:hover td{background:#fafbff}
+.tag{display:inline-block;padding:3px 9px;border-radius:999px;font-size:11.5px;font-weight:600;background:#eef2fb;color:var(--blue)}
+.pill-in{color:var(--green);font-weight:700}.pill-out{color:var(--red);font-weight:700}
+.right{text-align:right}.center{text-align:center}
+.bar-track{background:#eef2f8;border-radius:8px;height:10px;overflow:hidden}
+.bar-fill{height:100%;border-radius:8px;background:var(--accent)}
+.budget-row{display:grid;grid-template-columns:1.4fr 1fr 1.4fr auto;gap:14px;align-items:center;padding:11px 0;border-bottom:1px solid var(--line)}
+.insight{display:flex;gap:12px;padding:13px 15px;border:1px solid var(--line);border-radius:11px;margin-bottom:11px;background:#fff}
+.insight .ic{font-size:20px;line-height:1}
+.insight h4{font-size:14px;margin-bottom:3px}
+.insight p{font-size:13px;color:var(--muted)}
+.insight.good{border-left:4px solid var(--green)}
+.insight.warn{border-left:4px solid #f59e0b}
+.insight.bad{border-left:4px solid var(--red)}
+.insight.info{border-left:4px solid var(--accent)}
+.drop{border:2px dashed #c5d2ea;border-radius:14px;padding:38px;text-align:center;background:#fff;cursor:pointer;transition:.15s}
+.drop:hover,.drop.over{border-color:var(--accent);background:#f5f9ff}
+.muted{color:var(--muted)}.small{font-size:12.5px}
+.modal-bg{position:fixed;inset:0;background:rgba(15,23,42,.5);display:none;align-items:center;justify-content:center;z-index:50;padding:18px}
+.modal-bg.show{display:flex}
+.modal{background:#fff;border-radius:16px;max-width:640px;width:100%;max-height:90vh;overflow:auto;padding:24px}
+.map-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:14px 0}
+label.fld{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:5px}
+.empty{text-align:center;padding:46px 20px;color:var(--muted)}
+.empty .big{font-size:40px;margin-bottom:10px}
+.chip{display:inline-block;background:#eef2fb;color:var(--blue);border-radius:999px;padding:4px 10px;font-size:12px;font-weight:600;margin:3px 4px 0 0}
+.flexsb{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+footer{text-align:center;color:var(--muted);font-size:12px;margin-top:36px}
+canvas{max-height:300px}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand"><div class="logo">💸</div> MyMoney</div>
+    <div class="privacy">🔒 Your data stays in this browser — nothing is uploaded</div>
+  </header>
+
+  <nav class="tabs" id="tabs">
+    <button data-tab="dashboard" class="active">Dashboard</button>
+    <button data-tab="transactions">Transactions</button>
+    <button data-tab="budget">Budget</button>
+    <button data-tab="insights">Insights</button>
+    <button data-tab="import">Import / Add</button>
+    <button data-tab="settings">Data</button>
+  </nav>
+
+  <!-- DASHBOARD -->
+  <section class="tab active" id="dashboard">
+    <div class="toolbar">
+      <strong>Period:</strong>
+      <select id="monthFilter"></select>
+      <span class="muted small" id="periodNote"></span>
+    </div>
+    <div class="kpis">
+      <div class="card kpi"><div class="label">Money In</div><div class="val green" id="kIn">R0</div><div class="sub" id="kInSub"></div></div>
+      <div class="card kpi"><div class="label">Money Out</div><div class="val red" id="kOut">R0</div><div class="sub" id="kOutSub"></div></div>
+      <div class="card kpi"><div class="label">Net</div><div class="val navy" id="kNet">R0</div><div class="sub" id="kNetSub"></div></div>
+      <div class="card kpi"><div class="label">Savings Rate</div><div class="val navy" id="kRate">0%</div><div class="sub">of income kept</div></div>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <h2 class="section">Spending by category</h2>
+        <canvas id="catChart"></canvas>
+      </div>
+      <div class="card">
+        <h2 class="section">Highlights</h2>
+        <div id="highlights"></div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h2 class="section">Income vs expenses — monthly trend</h2>
+      <canvas id="trendChart"></canvas>
+    </div>
+  </section>
+
+  <!-- TRANSACTIONS -->
+  <section class="tab" id="transactions">
+    <div class="card">
+      <div class="flexsb" style="margin-bottom:14px">
+        <h2 class="section" style="margin:0">All transactions (<span id="txCount">0</span>)</h2>
+        <div>
+          <input type="text" id="txSearch" placeholder="Search description…" style="width:200px">
+          <select id="txMonth"></select>
+        </div>
+      </div>
+      <div style="overflow:auto">
+        <table id="txTable">
+          <thead><tr><th>Date</th><th>Description</th><th>Category</th><th>Type</th><th class="right">Amount</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div id="txEmpty" class="empty" style="display:none"><div class="big">🧾</div>No transactions yet. Go to <strong>Import / Add</strong> to load a statement.</div>
+    </div>
+  </section>
+
+  <!-- BUDGET -->
+  <section class="tab" id="budget">
+    <div class="card">
+      <div class="flexsb" style="margin-bottom:6px">
+        <h2 class="section" style="margin:0">Monthly budget vs actual</h2>
+        <select id="budgetMonth"></select>
+      </div>
+      <p class="muted small" style="margin-bottom:16px">Set a monthly limit per category. Bars fill as you spend; they turn red when you go over.</p>
+      <div id="budgetList"></div>
+      <div class="flexsb" style="margin-top:16px;border-top:2px solid var(--line);padding-top:14px">
+        <strong>Total budget: <span id="budTotal">R0</span></strong>
+        <strong>Spent: <span id="budSpent">R0</span></strong>
+      </div>
+    </div>
+  </section>
+
+  <!-- INSIGHTS -->
+  <section class="tab" id="insights">
+    <div class="card">
+      <h2 class="section">Smart insights <span class="muted" style="text-transform:none;font-weight:500">— generated from your data, on your device</span></h2>
+      <div id="insightList"></div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h2 class="section">Want deeper advice?</h2>
+      <p class="small muted">These insights are rule-based and run locally. For a richer review — "where can I realistically cut back?", "how does this month compare?" — export your data (Data tab) and ask Claude to analyse it. Your numbers, expert read-out.</p>
+    </div>
+  </section>
+
+  <!-- IMPORT -->
+  <section class="tab" id="import">
+    <div class="row">
+      <div class="card" style="flex:1;min-width:300px">
+        <h2 class="section">Upload a bank statement (CSV)</h2>
+        <div class="drop" id="drop">
+          <div style="font-size:34px">📄</div>
+          <p style="margin-top:8px"><strong>Click to choose</strong> or drag a CSV file here</p>
+          <p class="muted small" style="margin-top:5px">Works with most SA bank exports. You'll map the columns next.</p>
+        </div>
+        <input type="file" id="fileInput" accept=".csv,text/csv" style="display:none">
+      </div>
+      <div class="card" style="flex:1;min-width:300px">
+        <h2 class="section">Add one transaction manually</h2>
+        <div class="map-grid" style="grid-template-columns:1fr 1fr">
+          <div><label class="fld">Date</label><input type="date" id="mDate" style="width:100%"></div>
+          <div><label class="fld">Type</label><select id="mType" style="width:100%"><option>Out</option><option>In</option></select></div>
+          <div style="grid-column:1/3"><label class="fld">Description</label><input type="text" id="mDesc" style="width:100%" placeholder="e.g. Checkers"></div>
+          <div><label class="fld">Category</label><select id="mCat" style="width:100%"></select></div>
+          <div><label class="fld">Amount (R)</label><input type="number" id="mAmt" style="width:100%" placeholder="0.00" step="0.01"></div>
+        </div>
+        <button class="btn" id="addManual">Add transaction</button>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <div class="flexsb">
+        <div><h2 class="section" style="margin:0">No data yet?</h2><p class="small muted">Load realistic sample data to explore the app, then clear it when you're ready.</p></div>
+        <button class="btn ghost" id="loadSample">Load sample data</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- SETTINGS -->
+  <section class="tab" id="settings">
+    <div class="card">
+      <h2 class="section">Your data</h2>
+      <p class="small muted" style="margin-bottom:14px">Everything is stored only in this browser (localStorage). Back it up or move it between devices with export / import.</p>
+      <div class="toolbar">
+        <button class="btn ghost" id="exportJson">⬇ Export backup (JSON)</button>
+        <button class="btn ghost" id="exportCsv">⬇ Export transactions (CSV)</button>
+        <button class="btn ghost" id="importJsonBtn">⬆ Restore backup</button>
+        <input type="file" id="importJson" accept=".json" style="display:none">
+        <button class="btn danger" id="clearAll">🗑 Clear all data</button>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h2 class="section">Categories</h2>
+      <p class="small muted" style="margin-bottom:10px">Transactions are auto-sorted into these. Recategorise any transaction on the Transactions tab.</p>
+      <div id="catChips"></div>
+    </div>
+  </section>
+
+  <footer>MyMoney · runs entirely in your browser · amounts in South African Rand (R)</footer>
+</div>
+
+<!-- MAPPING MODAL -->
+<div class="modal-bg" id="mapModal">
+  <div class="modal">
+    <h2 style="margin-bottom:4px">Map your statement columns</h2>
+    <p class="muted small">We guessed these from your file — adjust if needed, then import.</p>
+    <div class="map-grid">
+      <div><label class="fld">Date column</label><select id="colDate"></select></div>
+      <div><label class="fld">Description column</label><select id="colDesc"></select></div>
+      <div><label class="fld">Amount style</label>
+        <select id="amtStyle">
+          <option value="single">Single amount column (+/-)</option>
+          <option value="split">Separate debit & credit columns</option>
+        </select>
+      </div>
+      <div id="wrapSingle"><label class="fld">Amount column</label><select id="colAmt"></select></div>
+      <div id="wrapDebit" style="display:none"><label class="fld">Debit (out) column</label><select id="colDebit"></select></div>
+      <div id="wrapCredit" style="display:none"><label class="fld">Credit (in) column</label><select id="colCredit"></select></div>
+      <div id="wrapSign"><label class="fld">In single column, expenses are…</label>
+        <select id="signMode"><option value="neg">Negative numbers</option><option value="pos">Positive numbers</option></select>
+      </div>
+    </div>
+    <div class="card" style="background:#f8faff;padding:12px;margin:8px 0">
+      <div class="small muted" style="margin-bottom:6px">Preview (first 3 rows):</div>
+      <div id="mapPreview" class="small"></div>
+    </div>
+    <div class="flexsb">
+      <span class="small muted" id="mapMsg"></span>
+      <div>
+        <button class="btn ghost" id="mapCancel">Cancel</button>
+        <button class="btn" id="mapConfirm">Import transactions</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const ZAR = new Intl.NumberFormat('en-ZA',{style:'currency',currency:'ZAR',minimumFractionDigits:2});
+const ZAR0 = new Intl.NumberFormat('en-ZA',{style:'currency',currency:'ZAR',maximumFractionDigits:0});
+const $ = s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
+
+const EXPENSE_CATS=["Groceries","Eating Out & Takeaways","Transport & Fuel","Vehicle","Rent / Bond","Utilities","Airtime & Data","DStv & Streaming","Medical & Health","Insurance","Bank Charges","Debt & Loans","Education","Childcare & Family","Clothing","Personal Care","Entertainment","Travel & Holidays","Gifts & Donations","Home & Garden","Subscriptions","Savings & Investments","Tax","Other"];
+const INCOME_CATS=["Salary","Side Income","Interest & Dividends","Refunds","Gifts Received","Other Income"];
+const ALL_CATS=[...EXPENSE_CATS,...INCOME_CATS];
+
+const RULES=[
+ [/checkers|shoprite|pick n pay|pnp|woolworths|woolies|spar|food lover|game food|usave/i,"Groceries"],
+ [/uber eats|mr d|mr delivery|kfc|nando|mcdonald|steers|debonair|wimpy|restaurant|takeaway|cafe|coffee|starbucks|vida/i,"Eating Out & Takeaways"],
+ [/engen|shell|bp|sasol|total|caltex|fuel|petrol|garage|uber\b|bolt|gautrain|taxi|parking/i,"Transport & Fuel"],
+ [/wesbank|vehicle|car finance|toyota|tracker|netstar|tyres|licen[sc]e disc/i,"Vehicle"],
+ [/bond|home loan|rent|landlord|sa home loans/i,"Rent / Bond"],
+ [/eskom|prepaid elec|municipal|city of|rates|water|joburg water|electricity/i,"Utilities"],
+ [/vodacom|mtn|cell c|telkom|rain|airtime|data bundle|fibre|webafrica|afrihost|cool ?ideas/i,"Airtime & Data"],
+ [/dstv|multichoice|netflix|showmax|spotify|disney|youtube premium|apple tv|amazon prime/i,"DStv & Streaming"],
+ [/discovery health|momentum health|bonitas|medical aid|medic?lin|dischem|clicks pharmacy|pharmacy|doctor|dentist|hospital|netcare|mediclinic/i,"Medical & Health"],
+ [/insurance|outsurance|santam|hollard|miway|king price|funeral cover|life cover/i,"Insurance"],
+ [/bank charge|monthly fee|service fee|admin fee|atm|cash withdrawal fee/i,"Bank Charges"],
+ [/loan|repayment|capitec loan|african bank|credit card payment|nedbank loan/i,"Debt & Loans"],
+ [/school|tuition|university|college|udemy|course|fees/i,"Education"],
+ [/creche|day ?care|nanny|childcare|baby/i,"Childcare & Family"],
+ [/zara|cotton on|mr price|truworths|foschini|markham|h&m|edgars|clothing|sportscene/i,"Clothing"],
+ [/gym|virgin active|planet fitness|salon|hair|spa|barber|cosmetic/i,"Personal Care"],
+ [/ster kinekor|nu metro|movies|computicket|playstation|xbox|steam|game\b|entertainment/i,"Entertainment"],
+ [/flight|kulula|flysafair|airlink|hotel|airbnb|booking\.com|lodge|holiday|travel/i,"Travel & Holidays"],
+ [/donation|charity|gift|sanbs|npo/i,"Gifts & Donations"],
+ [/builders|leroy merlin|garden|makro|home|furniture|tfg|incredible/i,"Home & Garden"],
+ [/subscription|google one|icloud|microsoft 365|adobe|dropbox|chatgpt|openai|canva/i,"Subscriptions"],
+ [/savings|invest|easy ?equities|tfsa|unit trust|allan gray|coronation|sygnia|10x/i,"Savings & Investments"],
+ [/sars|tax|paye|vat/i,"Tax"],
+ [/salary|payroll|wages|income|stipend/i,"Salary"],
+ [/interest|dividend|credit interest/i,"Interest & Dividends"],
+ [/refund|reversal|cashback/i,"Refunds"],
+];
+function categorize(desc,type){
+  const d=(desc||"").toString();
+  for(const [re,cat] of RULES){ if(re.test(d)){ if(type==="In"&&EXPENSE_CATS.includes(cat))continue; return cat; } }
+  return type==="In"?"Other Income":"Other";
+}
+
+let STATE={transactions:[],budgets:{}};
+const KEY="mymoney_v1";
+function load(){try{const r=localStorage.getItem(KEY);if(r)STATE=JSON.parse(r);}catch(e){}}
+function save(){localStorage.setItem(KEY,JSON.stringify(STATE));}
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
+
+/* ---------- helpers ---------- */
+function parseAmount(v){if(v==null)return NaN;let s=v.toString().replace(/[R\s,]/g,'').replace(/[()]/g,m=>m==='('?'-':'');return parseFloat(s);}
+function parseDate(v){
+  if(v==null)return null; let s=v.toString().trim();
+  let m;
+  if(m=s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/))return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+  if(m=s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/))return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  if(m=s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{2})$/)){let y=+m[3];y=y>50?1900+y:2000+y;return `${y}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;}
+  const months={jan:'01',feb:'02',mar:'03',apr:'04',may:'05',jun:'06',jul:'07',aug:'08',sep:'09',oct:'10',nov:'11',dec:'12'};
+  if(m=s.match(/^(\d{1,2})\s*([A-Za-z]{3})[a-z]*\s*(\d{4})/)){let mo=months[m[2].toLowerCase()];if(mo)return `${m[3]}-${mo}-${m[1].padStart(2,'0')}`;}
+  const d=new Date(s); if(!isNaN(d))return d.toISOString().slice(0,10);
+  return null;
+}
+const monthOf=iso=>iso?iso.slice(0,7):"";
+function monthLabel(ym){if(!ym)return"";const[y,m]=ym.split('-');return new Date(y,m-1,1).toLocaleDateString('en-ZA',{month:'short',year:'numeric'});}
+
+/* ---------- derived ---------- */
+function months(){return[...new Set(STATE.transactions.map(t=>monthOf(t.date)).filter(Boolean))].sort();}
+function filtered(ym){return ym==="all"?STATE.transactions:STATE.transactions.filter(t=>monthOf(t.date)===ym);}
+function sum(arr,type){return arr.filter(t=>t.type===type).reduce((a,b)=>a+(+b.amount||0),0);}
+function byCat(arr){const m={};arr.filter(t=>t.type==="Out").forEach(t=>{m[t.category]=(m[t.category]||0)+(+t.amount||0);});return Object.entries(m).sort((a,b)=>b[1]-a[1]);}
+
+/* ---------- charts ---------- */
+let catChart,trendChart;
+function drawCharts(ym){
+  const arr=filtered(ym),cats=byCat(arr);
+  const labels=cats.map(c=>c[0]),data=cats.map(c=>c[1]);
+  if(catChart)catChart.destroy();
+  catChart=new Chart($('#catChart'),{type:'bar',data:{labels,datasets:[{data,backgroundColor:'#3b82f6',borderRadius:6}]},
+    options:{indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>ZAR.format(c.raw)}}},
+      scales:{x:{ticks:{callback:v=>'R'+v}},y:{ticks:{font:{size:11}}}}}});
+  const ms=months();
+  const inc=ms.map(m=>sum(filtered(m),"In")),exp=ms.map(m=>sum(filtered(m),"Out"));
+  if(trendChart)trendChart.destroy();
+  trendChart=new Chart($('#trendChart'),{type:'bar',data:{labels:ms.map(monthLabel),
+    datasets:[{label:'In',data:inc,backgroundColor:'#16a34a',borderRadius:5},{label:'Out',data:exp,backgroundColor:'#dc2626',borderRadius:5}]},
+    options:{plugins:{tooltip:{callbacks:{label:c=>c.dataset.label+': '+ZAR.format(c.raw)}}},scales:{y:{ticks:{callback:v=>'R'+v}}}}});
+}
+
+/* ---------- render dashboard ---------- */
+function renderDash(){
+  const ym=$('#monthFilter').value||'all';
+  const arr=filtered(ym),i=sum(arr,"In"),o=sum(arr,"Out"),net=i-o;
+  $('#kIn').textContent=ZAR0.format(i);
+  $('#kOut').textContent=ZAR0.format(o);
+  $('#kNet').textContent=ZAR0.format(net);
+  $('#kNet').className='val '+(net>=0?'green':'red');
+  $('#kRate').textContent=(i>0?Math.round(net/i*100):0)+'%';
+  const cats=byCat(arr);
+  $('#kInSub').textContent=arr.filter(t=>t.type==='In').length+' deposits';
+  $('#kOutSub').textContent=arr.filter(t=>t.type==='Out').length+' payments';
+  $('#kNetSub').textContent=net>=0?'saved this period':'overspent';
+  $('#periodNote').textContent=ym==='all'?`${STATE.transactions.length} transactions across ${months().length} month(s)`:'';
+  // highlights
+  let h='';
+  if(cats.length){
+    const top=cats[0],low=cats[cats.length-1];
+    const avg=o/(arr.filter(t=>t.type==='Out').length||1);
+    h+=hl('🔴',`Biggest expense: ${top[0]}`,`${ZAR.format(top[1])} — ${Math.round(top[1]/o*100)}% of spending`);
+    h+=hl('🟢',`Smallest active: ${low[0]}`,`${ZAR.format(low[1])}`);
+    h+=hl('📊',`Average payment`,`${ZAR.format(avg)} across ${arr.filter(t=>t.type==='Out').length} payments`);
+    h+=hl('🏷️',`Active categories`,`${cats.length} categories with spending`);
+  } else { h='<p class="muted small">No spending in this period yet.</p>'; }
+  $('#highlights').innerHTML=h;
+  drawCharts(ym);
+}
+function hl(ic,t,s){return `<div class="insight info"><div class="ic">${ic}</div><div><h4>${t}</h4><p>${s}</p></div></div>`;}
+
+/* ---------- transactions ---------- */
+function renderTx(){
+  const q=($('#txSearch').value||'').toLowerCase(), ym=$('#txMonth').value||'all';
+  let arr=filtered(ym).filter(t=>(t.description||'').toLowerCase().includes(q));
+  arr=arr.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  $('#txCount').textContent=STATE.transactions.length;
+  const tb=$('#txTable tbody');tb.innerHTML='';
+  $('#txEmpty').style.display=STATE.transactions.length?'none':'block';
+  $('#txTable').style.display=STATE.transactions.length?'table':'none';
+  arr.forEach(t=>{
+    const tr=document.createElement('tr');
+    const opts=ALL_CATS.map(c=>`<option ${c===t.category?'selected':''}>${c}</option>`).join('');
+    tr.innerHTML=`<td>${t.date||''}</td><td>${esc(t.description||'')}</td>
+      <td><select data-id="${t.id}" class="catSel" style="padding:4px 7px;font-size:12.5px">${opts}</select></td>
+      <td><span class="${t.type==='In'?'pill-in':'pill-out'}">${t.type}</span></td>
+      <td class="right">${ZAR.format(+t.amount||0)}</td>
+      <td class="right"><button class="btn danger sm delTx" data-id="${t.id}">✕</button></td>`;
+    tb.appendChild(tr);
+  });
+  $$('.catSel').forEach(s=>s.onchange=e=>{const t=STATE.transactions.find(x=>x.id===e.target.dataset.id);if(t){t.category=e.target.value;save();renderAll();}});
+  $$('.delTx').forEach(b=>b.onclick=e=>{STATE.transactions=STATE.transactions.filter(x=>x.id!==e.target.dataset.id);save();renderAll();});
+}
+const esc=s=>s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+/* ---------- budget ---------- */
+function renderBudget(){
+  const ym=$('#budgetMonth').value||(months().slice(-1)[0]||'all');
+  const arr=filtered(ym);
+  const spentByCat={};arr.filter(t=>t.type==='Out').forEach(t=>spentByCat[t.category]=(spentByCat[t.category]||0)+(+t.amount||0));
+  let html='',tb=0,ts=0;
+  EXPENSE_CATS.forEach(c=>{
+    const bud=+(STATE.budgets[c]||0),sp=spentByCat[c]||0;tb+=bud;ts+=sp;
+    const pct=bud>0?Math.min(sp/bud*100,100):(sp>0?100:0);
+    const over=bud>0&&sp>bud;
+    html+=`<div class="budget-row">
+      <div><strong>${c}</strong></div>
+      <div><input type="number" class="budInput" data-cat="${c}" value="${bud||''}" placeholder="0" style="width:110px"></div>
+      <div><div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${over?'#dc2626':(pct>85?'#f59e0b':'#3b82f6')}"></div></div>
+        <div class="small muted" style="margin-top:4px">${ZAR0.format(sp)}${bud>0?' / '+ZAR0.format(bud):''} ${over?'· <span style="color:#dc2626">over</span>':''}</div></div>
+      <div class="small ${over?'':'muted'}" style="text-align:right;min-width:48px">${bud>0?Math.round(sp/bud*100)+'%':'—'}</div>
+    </div>`;
+  });
+  $('#budgetList').innerHTML=html;
+  $('#budTotal').textContent=ZAR0.format(tb);
+  $('#budSpent').textContent=ZAR0.format(ts);
+  $$('.budInput').forEach(inp=>inp.onchange=e=>{const v=parseFloat(e.target.value);if(v>0)STATE.budgets[e.target.dataset.cat]=v;else delete STATE.budgets[e.target.dataset.cat];save();renderBudget();});
+}
+
+/* ---------- insights ---------- */
+function renderInsights(){
+  const out=[];const ms=months();
+  if(!STATE.transactions.length){$('#insightList').innerHTML='<p class="muted">Add some transactions to see insights.</p>';return;}
+  const cur=ms.slice(-1)[0],prev=ms.slice(-2)[0];
+  const arr=filtered(cur),i=sum(arr,'In'),o=sum(arr,'Out'),net=i-o;
+  const cats=byCat(arr);
+  // savings rate
+  if(i>0){const rate=net/i;
+    if(rate>=0.2)out.push(['good','💪',`Strong savings rate in ${monthLabel(cur)}`,`You kept ${Math.round(rate*100)}% of your income (${ZAR.format(net)}). That's a healthy buffer — consider moving it to a TFSA or investment.`]);
+    else if(rate>=0)out.push(['warn','⚠️',`Thin savings margin in ${monthLabel(cur)}`,`You kept only ${Math.round(rate*100)}% of income. Trimming your top category could lift this above the 20% rule of thumb.`]);
+    else out.push(['bad','🚨',`You spent more than you earned in ${monthLabel(cur)}`,`Net was ${ZAR.format(net)}. Worth reviewing your biggest categories below.`]);
+  }
+  // top category
+  if(cats.length){const t=cats[0];out.push(['info','🔎',`${t[0]} is your biggest expense`,`${ZAR.format(t[1])} this month — ${Math.round(t[1]/o*100)}% of all spending. Small cuts here move the needle most.`]);}
+  // budget overruns
+  const over=EXPENSE_CATS.filter(c=>STATE.budgets[c]&&(cats.find(x=>x[0]===c)?.[1]||0)>STATE.budgets[c]);
+  if(over.length)out.push(['bad','📉',`Over budget in ${over.length} categor${over.length>1?'ies':'y'}`,`You exceeded your limit on: ${over.join(', ')}. Check the Budget tab.`]);
+  else if(Object.keys(STATE.budgets).length)out.push(['good','✅',`On budget`,`You're within your set limits this month. Nice discipline.`]);
+  // month over month
+  if(prev){const po=sum(filtered(prev),'Out');if(po>0){const ch=(o-po)/po;
+    if(ch>0.1)out.push(['warn','📈',`Spending up vs ${monthLabel(prev)}`,`You spent ${Math.round(ch*100)}% more than last month (${ZAR.format(o-po)} extra).`]);
+    else if(ch<-0.1)out.push(['good','📉',`Spending down vs ${monthLabel(prev)}`,`You spent ${Math.round(-ch*100)}% less than last month — ${ZAR.format(po-o)} saved.`]);
+  }}
+  // subscriptions
+  const subs=arr.filter(t=>t.category==='Subscriptions'||t.category==='DStv & Streaming');
+  if(subs.length){const st=subs.reduce((a,b)=>a+(+b.amount||0),0);out.push(['info','🔁',`${subs.length} subscription payments`,`Recurring services cost you ${ZAR.format(st)} this month. Cancel what you don't use — it compounds yearly to ${ZAR0.format(st*12)}.`]);}
+  // bank charges
+  const bc=cats.find(x=>x[0]==='Bank Charges');if(bc&&bc[1]>200)out.push(['warn','🏦',`Bank fees adding up`,`${ZAR.format(bc[1])} in bank charges this month. A cheaper account tier could save this.`]);
+  $('#insightList').innerHTML=out.map(([cls,ic,t,s])=>`<div class="insight ${cls}"><div class="ic">${ic}</div><div><h4>${t}</h4><p>${s}</p></div></div>`).join('');
+}
+
+/* ---------- selectors ---------- */
+function fillMonthSelectors(){
+  const ms=months();
+  const opt=(v,l)=>`<option value="${v}">${l}</option>`;
+  const all=opt('all','All time');
+  const list=ms.map(m=>opt(m,monthLabel(m))).reverse().join('');
+  const cur=ms.slice(-1)[0]||'all';
+  setSel('#monthFilter',all+list,'all');
+  setSel('#txMonth',all+list,'all');
+  setSel('#budgetMonth',(ms.length?list:all),cur);
+}
+function setSel(sel,html,def){const el=$(sel);const prev=el.value;el.innerHTML=html;el.value=[...el.options].some(o=>o.value===prev)?prev:def;}
+
+function fillCatDropdowns(){
+  $('#mCat').innerHTML=ALL_CATS.map(c=>`<option>${c}</option>`).join('');
+  $('#catChips').innerHTML='<strong class="small">Expenses:</strong><br>'+EXPENSE_CATS.map(c=>`<span class="chip">${c}</span>`).join('')+'<br><br><strong class="small">Income:</strong><br>'+INCOME_CATS.map(c=>`<span class="chip" style="background:#e7f6ed;color:#16a34a">${c}</span>`).join('');
+}
+
+function renderAll(){fillMonthSelectors();renderDash();renderTx();renderBudget();renderInsights();fillCatDropdowns();}
+
+/* ---------- tabs ---------- */
+$$('#tabs button').forEach(b=>b.onclick=()=>{
+  $$('#tabs button').forEach(x=>x.classList.remove('active'));b.classList.add('active');
+  $$('.tab').forEach(t=>t.classList.remove('active'));$('#'+b.dataset.tab).classList.add('active');
+  if(b.dataset.tab==='dashboard')renderDash();
+});
+$('#monthFilter').onchange=renderDash;
+$('#txMonth').onchange=renderTx;$('#txSearch').oninput=renderTx;
+$('#budgetMonth').onchange=renderBudget;
+
+/* ---------- manual add ---------- */
+$('#addManual').onclick=()=>{
+  const date=$('#mDate').value,desc=$('#mDesc').value.trim(),type=$('#mType').value,amt=parseFloat($('#mAmt').value),cat=$('#mCat').value;
+  if(!date||!desc||!(amt>0)){alert('Please enter a date, description and amount.');return;}
+  STATE.transactions.push({id:uid(),date,description:desc,type,amount:Math.abs(amt),category:cat});
+  save();$('#mDesc').value='';$('#mAmt').value='';renderAll();
+  alert('Added ✓');
+};
+
+/* ---------- sample ---------- */
+$('#loadSample').onclick=()=>{
+  if(STATE.transactions.length&&!confirm('This adds sample rows to your existing data. Continue?'))return;
+  const s=[
+   ['2026-05-25','Salary - May','In',32000],['2026-05-26','Checkers Hyper','Out',1850.40],
+   ['2026-05-27','Engen fuel','Out',950],['2026-05-28','Bond repayment','Out',8200],
+   ['2026-05-29','Discovery medical aid','Out',2450],['2026-05-30','Netflix','Out',199],
+   ['2026-05-30','Vodacom airtime','Out',599],['2026-05-31','Woolworths','Out',1120],
+   ['2026-06-25','Salary - June','In',32000],['2026-06-02','DStv Premium','Out',929],
+   ['2026-06-03','Pick n Pay','Out',1640.75],['2026-06-04','Uber Eats','Out',285.50],
+   ['2026-06-05','Eskom prepaid electricity','Out',1100],['2026-06-05','Bank monthly fee','Out',115],
+   ['2026-06-06','Freelance design job','In',4500],['2026-06-07','Virgin Active gym','Out',650],
+   ['2026-06-08','Engen fuel','Out',1010],['2026-06-09','Transfer to EasyEquities','Out',3000],
+   ['2026-06-10','Spotify','Out',69.99],['2026-06-11','Clicks pharmacy','Out',430],
+  ];
+  s.forEach(([date,description,type,amount])=>STATE.transactions.push({id:uid(),date,description,type,amount,category:categorize(description,type)}));
+  save();renderAll();
+  $$('#tabs button')[0].click();
+};
+
+/* ---------- CSV import ---------- */
+let parsedRows=[],parsedFields=[];
+$('#drop').onclick=()=>$('#fileInput').click();
+$('#fileInput').onchange=e=>{if(e.target.files[0])handleFile(e.target.files[0]);};
+['dragover','dragleave','drop'].forEach(ev=>$('#drop').addEventListener(ev,e=>{e.preventDefault();if(ev==='dragover')$('#drop').classList.add('over');else $('#drop').classList.remove('over');if(ev==='drop'&&e.dataTransfer.files[0])handleFile(e.dataTransfer.files[0]);}));
+function handleFile(file){
+  Papa.parse(file,{header:true,skipEmptyLines:true,complete:res=>{
+    parsedRows=res.data;parsedFields=res.meta.fields||[];
+    if(!parsedRows.length){alert('Could not read any rows from that file.');return;}
+    openMapper();
+  }});
+}
+function guess(fields,res){const f=fields.find(x=>res.test(x));return f||'';}
+function openMapper(){
+  const f=parsedFields,sel=arr=>arr.map(x=>`<option>${x}</option>`).join('');
+  ['#colDate','#colDesc','#colAmt','#colDebit','#colCredit'].forEach(s=>$(s).innerHTML=sel(f));
+  $('#colDate').value=guess(f,/date/i)||f[0];
+  $('#colDesc').value=guess(f,/desc|narrative|detail|reference|payee|memo/i)||f[1]||f[0];
+  $('#colAmt').value=guess(f,/amount|value/i)||f[f.length-1];
+  $('#colDebit').value=guess(f,/debit|withdraw|out/i)||f[0];
+  $('#colCredit').value=guess(f,/credit|deposit|in\b/i)||f[0];
+  const hasSplit=/debit/i.test(f.join(' '))&&/credit/i.test(f.join(' '));
+  $('#amtStyle').value=hasSplit?'split':'single';toggleAmtStyle();
+  updatePreview();$('#mapModal').classList.add('show');
+}
+$('#amtStyle').onchange=()=>{toggleAmtStyle();updatePreview();};
+['#colDate','#colDesc','#colAmt','#colDebit','#colCredit','#signMode'].forEach(s=>$(s).onchange=updatePreview);
+function toggleAmtStyle(){const split=$('#amtStyle').value==='split';$('#wrapSingle').style.display=split?'none':'';$('#wrapSign').style.display=split?'none':'';$('#wrapDebit').style.display=split?'':'none';$('#wrapCredit').style.display=split?'':'none';}
+function buildRows(){
+  const split=$('#amtStyle').value==='split';
+  const cd=$('#colDate').value,cde=$('#colDesc').value;
+  const out=[];
+  parsedRows.forEach(r=>{
+    const date=parseDate(r[cd]);if(!date)return;
+    const desc=(r[cde]||'').toString().trim();let amt,type;
+    if(split){const db=parseAmount(r[$('#colDebit').value]),cr=parseAmount(r[$('#colCredit').value]);
+      if(cr>0){amt=cr;type='In';}else if(db>0){amt=db;type='Out';}else return;}
+    else{let a=parseAmount(r[$('#colAmt').value]);if(isNaN(a)||a===0)return;
+      const expNeg=$('#signMode').value==='neg';
+      if(expNeg){type=a<0?'Out':'In';}else{type=a>0?'Out':'In';}
+      amt=Math.abs(a);}
+    out.push({id:uid(),date,description:desc,type,amount:amt,category:categorize(desc,type)});
+  });
+  return out;
+}
+function updatePreview(){
+  const rows=buildRows().slice(0,3);
+  $('#mapMsg').textContent='';
+  if(!rows.length){$('#mapPreview').innerHTML='<span style="color:#dc2626">No valid rows detected — check your column choices.</span>';return;}
+  $('#mapPreview').innerHTML=rows.map(r=>`${r.date} · ${esc(r.description.slice(0,32))} · <span class="${r.type==='In'?'pill-in':'pill-out'}">${r.type}</span> ${ZAR.format(r.amount)} <span class="tag">${r.category}</span>`).join('<br>');
+}
+$('#mapCancel').onclick=()=>$('#mapModal').classList.remove('show');
+$('#mapConfirm').onclick=()=>{
+  const rows=buildRows();
+  if(!rows.length){alert('No valid rows to import. Adjust the column mapping.');return;}
+  STATE.transactions.push(...rows);save();$('#mapModal').classList.remove('show');renderAll();
+  $$('#tabs button')[0].click();
+  alert(`Imported ${rows.length} transactions ✓`);
+};
+
+/* ---------- data tools ---------- */
+$('#exportJson').onclick=()=>download('mymoney-backup.json',JSON.stringify(STATE,null,2));
+$('#exportCsv').onclick=()=>{const h='Date,Description,Category,Type,Amount\n';const b=STATE.transactions.map(t=>`${t.date},"${(t.description||'').replace(/"/g,'""')}",${t.category},${t.type},${t.amount}`).join('\n');download('mymoney-transactions.csv',h+b);};
+$('#importJsonBtn').onclick=()=>$('#importJson').click();
+$('#importJson').onchange=e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{try{const d=JSON.parse(rd.result);if(d.transactions){STATE=d;save();renderAll();alert('Backup restored ✓');}else alert('Not a valid backup file.');}catch(err){alert('Could not read that file.');}};rd.readAsText(f);};
+$('#clearAll').onclick=()=>{if(confirm('Delete ALL your data from this browser? This cannot be undone.')){STATE={transactions:[],budgets:{}};save();renderAll();}};
+function download(name,content){const b=new Blob([content],{type:'text/plain'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;a.click();}
+
+/* ---------- init ---------- */
+$('#mDate').value=new Date().toISOString().slice(0,10);
+load();renderAll();
+</script>
+</body>
+</html>
