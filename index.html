@@ -710,29 +710,43 @@ $('#loadSample').onclick=()=>{
   $$('#tabs button')[0].click();
 };
 
-/* ---------- CSV import with de-dup ---------- */
-let parsedRows=[],parsedFields=[];
+/* ---------- CSV import (header-agnostic, handles preamble + no-header bank exports) ---------- */
+let parsedRows=[],colCount=0,dataSample=[];
+const G={date:0,desc:1,amt:2,debit:0,credit:0,sign:'neg'};
 $('#drop').onclick=()=>$('#fileInput').click();
 $('#fileInput').onchange=e=>{if(e.target.files[0])handleFile(e.target.files[0]);};
 ['dragover','dragleave','drop'].forEach(ev=>$('#drop').addEventListener(ev,e=>{e.preventDefault();if(ev==='dragover')$('#drop').classList.add('over');else $('#drop').classList.remove('over');if(ev==='drop'&&e.dataTransfer.files[0])handleFile(e.dataTransfer.files[0]);}));
 function handleFile(file){
-  Papa.parse(file,{header:true,skipEmptyLines:true,complete:res=>{
-    parsedRows=res.data;parsedFields=res.meta.fields||[];
-    if(!parsedRows.length){alert('Could not read any rows from that file.');return;}
-    openMapper();
+  Papa.parse(file,{header:false,skipEmptyLines:true,complete:res=>{
+    const rows=res.data.map(r=>Array.isArray(r)?r:[r]);
+    const dataRows=rows.filter(r=>r.some(c=>parseDate(c)));
+    if(!dataRows.length){alert("Couldn't find any dated transaction rows in this file. Make sure it's a transaction CSV export from your bank.");return;}
+    parsedRows=rows;colCount=Math.max(...dataRows.map(r=>r.length));dataSample=dataRows[0];
+    autoGuess(dataRows);openMapper();
   }});
 }
-function guess(fields,res){const f=fields.find(x=>res.test(x));return f||'';}
+function autoGuess(dataRows){
+  const n=colCount,N=dataRows.length;
+  let dCol=0,dBest=-1;
+  for(let i=0;i<n;i++){const c=dataRows.filter(r=>parseDate(r[i])).length;if(c>dBest){dBest=c;dCol=i;}}
+  G.date=dCol;
+  const numCols=[];
+  for(let i=0;i<n;i++){if(i===dCol)continue;const c=dataRows.filter(r=>r[i]!=null&&r[i]!==''&&!isNaN(parseAmount(r[i]))).length;if(c>=N*0.6)numCols.push(i);}
+  let amt=numCols.length?numCols[0]:n-2,negBest=-1;
+  numCols.forEach(i=>{const neg=dataRows.filter(r=>parseAmount(r[i])<0).length;if(neg>negBest){negBest=neg;amt=i;}});
+  G.amt=amt;G.sign=negBest>0?'neg':'pos';
+  let desc=null,best=-1;
+  for(let i=0;i<n;i++){if(i===dCol)continue;const numFrac=dataRows.filter(r=>r[i]!=null&&r[i]!==''&&!isNaN(parseAmount(r[i]))).length/N;const avg=dataRows.reduce((a,r)=>a+((r[i]||'').toString().length),0)/N;if(numFrac<0.8&&avg>best){best=avg;desc=i;}}
+  if(desc==null)for(let i=0;i<n;i++){if(i!==dCol&&i!==amt){desc=i;break;}}
+  G.desc=desc==null?(dCol===0?1:0):desc;
+  G.debit=amt;const other=numCols.find(i=>i!==amt);G.credit=other==null?amt:other;
+}
+function colOptions(){return Array.from({length:colCount},(_,i)=>`<option value="${i}">Column ${i+1} — e.g. ${esc((dataSample[i]!=null?dataSample[i]:'').toString().slice(0,20))}</option>`).join('');}
 function openMapper(){
-  const f=parsedFields,sel=arr=>arr.map(x=>`<option>${x}</option>`).join('');
-  ['#colDate','#colDesc','#colAmt','#colDebit','#colCredit'].forEach(s=>$(s).innerHTML=sel(f));
-  $('#colDate').value=guess(f,/date/i)||f[0];
-  $('#colDesc').value=guess(f,/desc|narrative|detail|reference|payee|memo/i)||f[1]||f[0];
-  $('#colAmt').value=guess(f,/amount|value/i)||f[f.length-1];
-  $('#colDebit').value=guess(f,/debit|withdraw|out/i)||f[0];
-  $('#colCredit').value=guess(f,/credit|deposit|in\b/i)||f[0];
-  const hasSplit=/debit/i.test(f.join(' '))&&/credit/i.test(f.join(' '));
-  $('#amtStyle').value=hasSplit?'split':'single';toggleAmtStyle();
+  ['#colDate','#colDesc','#colAmt','#colDebit','#colCredit'].forEach(s=>$(s).innerHTML=colOptions());
+  $('#colDate').value=G.date;$('#colDesc').value=G.desc;$('#colAmt').value=G.amt;$('#colDebit').value=G.debit;$('#colCredit').value=G.credit;
+  $('#signMode').value=G.sign;
+  $('#amtStyle').value='single';toggleAmtStyle();
   updatePreview();$('#mapModal').classList.add('show');
 }
 $('#amtStyle').onchange=()=>{toggleAmtStyle();updatePreview();};
@@ -740,17 +754,15 @@ $('#amtStyle').onchange=()=>{toggleAmtStyle();updatePreview();};
 function toggleAmtStyle(){const split=$('#amtStyle').value==='split';$('#wrapSingle').style.display=split?'none':'';$('#wrapSign').style.display=split?'none':'';$('#wrapDebit').style.display=split?'':'none';$('#wrapCredit').style.display=split?'':'none';}
 function buildRows(){
   const split=$('#amtStyle').value==='split';
-  const cd=$('#colDate').value,cde=$('#colDesc').value;
+  const cd=+$('#colDate').value,cde=+$('#colDesc').value;
   const out=[];
   parsedRows.forEach(r=>{
     const date=parseDate(r[cd]);if(!date)return;
-    const desc=(r[cde]||'').toString().trim();let amt,type;
-    if(split){const db=parseAmount(r[$('#colDebit').value]),cr=parseAmount(r[$('#colCredit').value]);
+    const desc=(r[cde]!=null?r[cde]:'').toString().trim();let amt,type;
+    if(split){const db=parseAmount(r[+$('#colDebit').value]),cr=parseAmount(r[+$('#colCredit').value]);
       if(cr>0){amt=cr;type='In';}else if(db>0){amt=db;type='Out';}else return;}
-    else{let a=parseAmount(r[$('#colAmt').value]);if(isNaN(a)||a===0)return;
-      const expNeg=$('#signMode').value==='neg';
-      if(expNeg){type=a<0?'Out':'In';}else{type=a>0?'Out':'In';}
-      amt=Math.abs(a);}
+    else{let a=parseAmount(r[+$('#colAmt').value]);if(isNaN(a)||a===0)return;
+      const expNeg=$('#signMode').value==='neg';type=expNeg?(a<0?'Out':'In'):(a>0?'Out':'In');amt=Math.abs(a);}
     out.push({id:uid(),date,description:desc,type,amount:amt,category:categorize(desc,type)});
   });
   return out;
