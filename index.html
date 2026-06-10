@@ -351,16 +351,16 @@ const RECURRING_CATS=["Rent / Bond","Utilities","Airtime & Data","DStv & Streami
 
 const RULES=[
  [/checkers|shoprite|pick n pay|pnp|woolworths|woolies|spar|food lover|game food|usave/i,"Groceries"],
- [/uber eats|mr d|mr delivery|kfc|nando|mcdonald|steers|debonair|wimpy|restaurant|takeaway|cafe|coffee|starbucks|vida/i,"Eating Out & Takeaways"],
+ [/uber eats|mr d|mr delivery|kfc|nando|mcdonald|steers|debonair|wimpy|restaurant|takeaway|cafe|coffee|starbucks|vida|bootlegger|tashas|kauai|seattle coffee|burger|pizza|bar\b|grill/i,"Eating Out & Takeaways"],
  [/engen|shell|bp|sasol|total|caltex|fuel|petrol|garage|uber\b|bolt|gautrain|taxi|parking/i,"Transport & Fuel"],
  [/wesbank|vehicle|car finance|toyota|tracker|netstar|tyres|licen[sc]e disc/i,"Vehicle"],
- [/bond|home loan|rent|landlord|sa home loans/i,"Rent / Bond"],
- [/eskom|prepaid elec|municipal|city of|rates|water|joburg water|electricity/i,"Utilities"],
+ [/bond|home loan|rent|landlord|sa home loans|payprop|pay prop/i,"Rent / Bond"],
+ [/eskom|prepaid elec|municipal|city of|rates|water|joburg water|electricity|pp\*pec|pec utility|prepaidplus|prepaid plus/i,"Utilities"],
  [/vodacom|mtn|cell c|telkom|rain|airtime|data bundle|fibre|webafrica|afrihost|cool ?ideas/i,"Airtime & Data"],
  [/dstv|multichoice|netflix|showmax|spotify|disney|youtube premium|apple tv|amazon prime/i,"DStv & Streaming"],
- [/discovery health|momentum health|bonitas|medical aid|medic?lin|dischem|clicks pharmacy|pharmacy|doctor|dentist|hospital|netcare|mediclinic/i,"Medical & Health"],
+ [/discovery health|momentum health|bonitas|medical aid|medic?lin|dischem|clicks|pharmacy|doctor|dentist|hospital|netcare|mediclinic/i,"Medical & Health"],
  [/insurance|outsurance|santam|hollard|miway|king price|funeral cover|life cover/i,"Insurance"],
- [/bank charge|monthly fee|service fee|admin fee|atm|cash withdrawal fee/i,"Bank Charges"],
+ [/bank charge|monthly fee|monthly account fee|service fee|admin fee|atm|cash withdrawal fee|cash deposit fee|enote|e-note|debit order fee|maintenance fee|netbank payment fee|immediate payment|charge unpaid item|unpaid item|cross border|honouring fee|declined/i,"Bank Charges"],
  [/loan|repayment|capitec loan|african bank|credit card payment|nedbank loan/i,"Debt & Loans"],
  [/school|tuition|university|college|udemy|course|fees/i,"Education"],
  [/creche|day ?care|nanny|childcare|baby/i,"Childcare & Family"],
@@ -370,8 +370,8 @@ const RULES=[
  [/flight|kulula|flysafair|airlink|hotel|airbnb|booking\.com|lodge|holiday|travel/i,"Travel & Holidays"],
  [/donation|charity|gift|sanbs|npo/i,"Gifts & Donations"],
  [/builders|leroy merlin|garden|makro|home|furniture|tfg|incredible/i,"Home & Garden"],
- [/subscription|google one|icloud|microsoft 365|adobe|dropbox|chatgpt|openai|canva/i,"Subscriptions"],
- [/savings|invest|easy ?equities|tfsa|unit trust|allan gray|coronation|sygnia|10x/i,"Savings & Investments"],
+ [/subscription|subs\b|google one|google workspa|icloud|microsoft 365|adobe|dropbox|chatgpt|openai|claude|canva|apple\.com\/bill/i,"Subscriptions"],
+ [/savings|invest|easy ?equities|tfsa|unit trust|allan gray|coronation|sygnia|10x|justsave|just save|stash|satrix|fxculture|forex/i,"Savings & Investments"],
  [/sars|tax|paye|vat/i,"Tax"],
  [/salary|payroll|wages|income|stipend/i,"Salary"],
  [/interest|dividend|credit interest/i,"Interest & Dividends"],
@@ -721,8 +721,10 @@ function handleFile(file){
     const rows=res.data.map(r=>Array.isArray(r)?r:[r]);
     const dataRows=rows.filter(r=>r.some(c=>parseDate(c)));
     if(!dataRows.length){alert("Couldn't find any dated transaction rows in this file. Make sure it's a transaction CSV export from your bank.");return;}
-    parsedRows=rows;colCount=Math.max(...dataRows.map(r=>r.length));dataSample=dataRows[0];
-    autoGuess(dataRows);openMapper();
+    parsedRows=rows;colCount=Math.max(...dataRows.map(r=>r.length));
+    autoGuess(dataRows);
+    dataSample=dataRows.find(r=>parseDate(r[G.date]))||dataRows[0];
+    openMapper();
   }});
 }
 function autoGuess(dataRows){
