@@ -125,9 +125,9 @@ canvas{max-height:300px}
     </div>
     <div class="kpis">
       <div class="card kpi"><div class="label">Money In</div><div class="val green" id="kIn">R0</div><div class="sub" id="kInSub"></div></div>
-      <div class="card kpi"><div class="label">Money Out</div><div class="val red" id="kOut">R0</div><div class="sub" id="kOutSub"></div></div>
-      <div class="card kpi"><div class="label">Net</div><div class="val navy" id="kNet">R0</div><div class="sub" id="kNetSub"></div></div>
-      <div class="card kpi"><div class="label">Savings Rate</div><div class="val navy" id="kRate">0%</div><div class="sub">of income kept</div></div>
+      <div class="card kpi"><div class="label">Spent</div><div class="val red" id="kOut">R0</div><div class="sub" id="kOutSub"></div></div>
+      <div class="card kpi"><div class="label">Saved / Invested</div><div class="val navy" id="kNet">R0</div><div class="sub" id="kNetSub"></div></div>
+      <div class="card kpi"><div class="label">Savings Rate</div><div class="val navy" id="kRate">0%</div><div class="sub">income not spent</div></div>
     </div>
     <div class="grid2">
       <div class="card">
@@ -344,9 +344,10 @@ const ZAR = new Intl.NumberFormat('en-ZA',{style:'currency',currency:'ZAR',minim
 const ZAR0 = new Intl.NumberFormat('en-ZA',{style:'currency',currency:'ZAR',maximumFractionDigits:0});
 const $ = s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
 
-const EXPENSE_CATS=["Groceries","Eating Out & Takeaways","Transport & Fuel","Vehicle","Rent / Bond","Utilities","Airtime & Data","DStv & Streaming","Medical & Health","Insurance","Bank Charges","Debt & Loans","Education","Childcare & Family","Clothing","Personal Care","Entertainment","Travel & Holidays","Gifts & Donations","Home & Garden","Subscriptions","Savings & Investments","Tax","Other"];
+const EXPENSE_CATS=["Groceries","Eating Out & Takeaways","Transport & Fuel","Vehicle","Rent / Bond","Utilities","Airtime & Data","DStv & Streaming","Medical & Health","Insurance","Bank Charges","Debt & Loans","Education","Childcare & Family","Clothing","Personal Care","Entertainment","Travel & Holidays","Gifts & Donations","Home & Garden","Subscriptions","Tax","Other"];
+const TRANSFER_CATS=["Savings & Investments","Transfer"];
 const INCOME_CATS=["Salary","Side Income","Interest & Dividends","Refunds","Gifts Received","Other Income"];
-const ALL_CATS=[...EXPENSE_CATS,...INCOME_CATS];
+const ALL_CATS=[...EXPENSE_CATS,...TRANSFER_CATS,...INCOME_CATS];
 const RECURRING_CATS=["Rent / Bond","Utilities","Airtime & Data","DStv & Streaming","Medical & Health","Insurance","Subscriptions","Debt & Loans"];
 
 const RULES=[
@@ -413,8 +414,14 @@ function dayElapsed(ym){const today=new Date();const cur=today.toISOString().sli
 function months(){return[...new Set(STATE.transactions.map(t=>monthOf(t.date)).filter(Boolean))].sort();}
 function filtered(ym){return ym==="all"?STATE.transactions:STATE.transactions.filter(t=>monthOf(t.date)===ym);}
 function sum(arr,type){return arr.filter(t=>t.type===type).reduce((a,b)=>a+(+b.amount||0),0);}
-function byCat(arr){const m={};arr.filter(t=>t.type==="Out").forEach(t=>{m[t.category]=(m[t.category]||0)+(+t.amount||0);});return Object.entries(m).sort((a,b)=>b[1]-a[1]);}
+function isTransfer(t){return TRANSFER_CATS.includes(t.category);}
+function spend(arr){return arr.filter(t=>t.type==="Out"&&!isTransfer(t)).reduce((a,b)=>a+(+b.amount||0),0);}
+function saved(arr){return arr.filter(t=>t.type==="Out"&&isTransfer(t)).reduce((a,b)=>a+(+b.amount||0),0);}
+function spendCount(arr){return arr.filter(t=>t.type==="Out"&&!isTransfer(t)).length;}
+function byCat(arr){const m={};arr.filter(t=>t.type==="Out"&&!isTransfer(t)).forEach(t=>{m[t.category]=(m[t.category]||0)+(+t.amount||0);});return Object.entries(m).sort((a,b)=>b[1]-a[1]);}
 function avgMonthly(type){const ms=months();if(!ms.length)return 0;const vals=ms.map(m=>sum(filtered(m),type));return vals.reduce((a,b)=>a+b,0)/ms.length;}
+function avgSpend(){const ms=months();if(!ms.length)return 0;return ms.map(m=>spend(filtered(m))).reduce((a,b)=>a+b,0)/ms.length;}
+function avgSaved(){const ms=months();if(!ms.length)return 0;return ms.map(m=>saved(filtered(m))).reduce((a,b)=>a+b,0)/ms.length;}
 function avgIncomeWithIncome(){const ms=months().filter(m=>sum(filtered(m),"In")>0);if(!ms.length)return 0;return ms.reduce((a,m)=>a+sum(filtered(m),"In"),0)/ms.length;}
 
 let catChart,trendChart;
@@ -426,7 +433,7 @@ function drawCharts(ym){
     options:{indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>ZAR.format(c.raw)}}},
       scales:{x:{ticks:{callback:v=>'R'+v}},y:{ticks:{font:{size:11}}}}}});
   const ms=months();
-  const inc=ms.map(m=>sum(filtered(m),"In")),exp=ms.map(m=>sum(filtered(m),"Out"));
+  const inc=ms.map(m=>sum(filtered(m),"In")),exp=ms.map(m=>spend(filtered(m)));
   if(trendChart)trendChart.destroy();
   trendChart=new Chart($('#trendChart'),{type:'bar',data:{labels:ms.map(monthLabel),
     datasets:[{label:'In',data:inc,backgroundColor:'#16a34a',borderRadius:5},{label:'Out',data:exp,backgroundColor:'#dc2626',borderRadius:5}]},
@@ -435,26 +442,26 @@ function drawCharts(ym){
 
 function renderDash(){
   const ym=$('#monthFilter').value||'all';
-  const arr=filtered(ym),i=sum(arr,"In"),o=sum(arr,"Out"),net=i-o;
+  const arr=filtered(ym),i=sum(arr,"In"),sp=spend(arr),sv=saved(arr),rate=i>0?Math.round((i-sp)/i*100):0;
   $('#kIn').textContent=ZAR0.format(i);
-  $('#kOut').textContent=ZAR0.format(o);
-  $('#kNet').textContent=ZAR0.format(net);
-  $('#kNet').className='val '+(net>=0?'green':'red');
-  $('#kRate').textContent=(i>0?Math.round(net/i*100):0)+'%';
+  $('#kOut').textContent=ZAR0.format(sp);
+  $('#kNet').textContent=ZAR0.format(sv);
+  $('#kNet').className='val navy';
+  $('#kRate').textContent=rate+'%';
   const cats=byCat(arr);
   $('#kInSub').textContent=arr.filter(t=>t.type==='In').length+' deposits';
-  $('#kOutSub').textContent=arr.filter(t=>t.type==='Out').length+' payments';
-  $('#kNetSub').textContent=net>=0?'saved this period':'overspent';
+  $('#kOutSub').textContent=spendCount(arr)+' payments';
+  $('#kNetSub').textContent=sv>0?'moved to savings/investing':'nothing set aside yet';
   $('#periodNote').textContent=ym==='all'?`${STATE.transactions.length} transactions across ${months().length} month(s)`:'';
   let h='';
   if(cats.length){
-    const top=cats[0],low=cats[cats.length-1];
-    const avg=o/(arr.filter(t=>t.type==='Out').length||1);
+    const o=sp||1,top=cats[0],low=cats[cats.length-1],np=spendCount(arr);
     h+=hl('🔴',`Biggest expense: ${top[0]}`,`${ZAR.format(top[1])} — ${Math.round(top[1]/o*100)}% of spending`);
     h+=hl('🟢',`Smallest active: ${low[0]}`,`${ZAR.format(low[1])}`);
-    h+=hl('📊',`Average payment`,`${ZAR.format(avg)} across ${arr.filter(t=>t.type==='Out').length} payments`);
+    h+=hl('📊',`Average payment`,`${ZAR.format(sp/(np||1))} across ${np} payments`);
     h+=hl('🏷️',`Active categories`,`${cats.length} categories with spending`);
   } else { h='<p class="muted small">No spending in this period yet.</p>'; }
+  if(sv>0)h+=hl('🏦',`Saved / invested`,`${ZAR.format(sv)} moved to savings or investments — counted as money kept, not spent.`);
   $('#highlights').innerHTML=h;
   drawCharts(ym);
 }
@@ -516,7 +523,7 @@ function renderPlan(){
   $('#planMonthLabel').textContent=monthLabel(ym);
   const arr=filtered(ym);
   const incomeM=sum(arr,'In');
-  const spentM=sum(arr,'Out');
+  const spentM=spend(arr);
   const expectedIncome=Math.max(incomeM,avgIncomeWithIncome());
   const committed=plannedRemaining(ym);
   const safeNow=expectedIncome-spentM-committed;
@@ -577,8 +584,9 @@ $('#addGoal').onclick=()=>{
 /* ---------- INVEST (educational) ---------- */
 const TFSA_ANNUAL=46000, TFSA_LIFETIME=500000, RA_PCT=0.275, RA_CAP=430000;
 function renderInvest(){
-  const avgExp=avgMonthly('Out');
+  const avgExp=avgSpend();
   const avgInc=avgMonthly('In');
+  const alreadySaving=avgSaved();
   const surplus=avgInc-avgExp;
   const emTarget=avgExp*3;
   const emTarget6=avgExp*6;
@@ -600,7 +608,7 @@ function renderInvest(){
   steps.push([4,'Boost retirement with an RA','Retirement Annuity contributions are tax-deductible up to 27.5% of income (capped at R430,000/yr), which can reduce your tax bill. The trade-off: the money is locked until age 55. Good for long-horizon retirement money.',
     [`Your approx. annual deductible room: ${ZAR0.format(Math.min(avgInc*12*RA_PCT,RA_CAP))}`,`≈ ${ZAR0.format(raRoom)}/mo`]]);
   steps.push([5,'Then ordinary long-term investing','Once the above are covered, additional money can go into a normal (taxable) investment account — typically diversified, low-cost index funds/ETFs for goals 5+ years away. Keep costs low and stay invested through the ups and downs.',
-    surplus>0?[`If you invested your ${ZAR0.format(surplus)}/mo surplus, that's ${ZAR0.format(surplus*12)}/yr working for you`]:['Focus on lifting your surplus first — see the Plan tab']]);
+    (alreadySaving>0?[`You're already setting aside ${ZAR0.format(alreadySaving)}/mo — a great habit`]:[]).concat(surplus>0?[`Your ${ZAR0.format(surplus)}/mo surplus is ${ZAR0.format(surplus*12)}/yr that could be working for you`]:['Focus on lifting your surplus first — see the Plan tab'])]);
   $('#investSteps').innerHTML=steps.map(([n,t,p,figs])=>`<div class="step"><div class="num">${n}</div><div><h4>${t}</h4><p>${p}</p>${figs.map(f=>`<span class="fig">${f}</span>`).join('')}</div></div>`).join('');
 }
 
@@ -608,8 +616,9 @@ function renderInsights(){
   const out=[];const ms=months();
   if(!STATE.transactions.length){$('#insightList').innerHTML='<p class="muted">Add some transactions to see insights.</p>';return;}
   const cur=ms.slice(-1)[0],prev=ms.slice(-2)[0];
-  const arr=filtered(cur),i=sum(arr,'In'),o=sum(arr,'Out'),net=i-o;
+  const arr=filtered(cur),i=sum(arr,'In'),o=spend(arr),sv=saved(arr),net=i-o;
   const cats=byCat(arr);
+  if(sv>0)out.push(['good','🏦',`You set aside ${ZAR.format(sv)} in ${monthLabel(cur)}`,`That's a transfer to savings/investments — tracked as money kept, not spending. ${i>0?Math.round(sv/i*100)+'% of your income.':''}`]);
   if(i>0){const rate=net/i;
     if(rate>=0.2)out.push(['good','💪',`Strong savings rate in ${monthLabel(cur)}`,`You kept ${Math.round(rate*100)}% of your income (${ZAR.format(net)}). Consider routing it to a TFSA — see the Invest tab.`]);
     else if(rate>=0)out.push(['warn','⚠️',`Thin savings margin in ${monthLabel(cur)}`,`You kept only ${Math.round(rate*100)}% of income. Trimming your top category could lift this above the 20% rule of thumb.`]);
@@ -619,7 +628,7 @@ function renderInsights(){
   const over=EXPENSE_CATS.filter(c=>STATE.budgets[c]&&(cats.find(x=>x[0]===c)?.[1]||0)>STATE.budgets[c]);
   if(over.length)out.push(['bad','📉',`Over budget in ${over.length} categor${over.length>1?'ies':'y'}`,`You exceeded your limit on: ${over.join(', ')}.`]);
   else if(Object.keys(STATE.budgets).length)out.push(['good','✅',`On budget`,`You're within your set limits this month.`]);
-  if(prev){const po=sum(filtered(prev),'Out');if(po>0){const ch=(o-po)/po;
+  if(prev){const po=spend(filtered(prev));if(po>0){const ch=(o-po)/po;
     if(ch>0.1)out.push(['warn','📈',`Spending up vs ${monthLabel(prev)}`,`You spent ${Math.round(ch*100)}% more than last month (${ZAR.format(o-po)} extra).`]);
     else if(ch<-0.1)out.push(['good','📉',`Spending down vs ${monthLabel(prev)}`,`You spent ${Math.round(-ch*100)}% less than last month — ${ZAR.format(po-o)} saved.`]);
   }}
@@ -632,7 +641,7 @@ function renderInsights(){
 function detectRecurring(){
   // group Out transactions by normalised description; recurring if appears in 2+ distinct months
   const map={};
-  STATE.transactions.filter(t=>t.type==='Out').forEach(t=>{
+  STATE.transactions.filter(t=>t.type==='Out'&&!isTransfer(t)).forEach(t=>{
     const key=(t.description||'').toLowerCase().replace(/[0-9]/g,'').replace(/\s+/g,' ').trim().slice(0,24);
     if(!key)return;(map[key]=map[key]||[]).push(t);
   });
